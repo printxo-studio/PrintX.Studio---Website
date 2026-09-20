@@ -17,12 +17,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useCart, useWishlist } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import CartDrawer from "../cart/CartDrawer";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { totalItemsCount } = useCart();
   const { wishlistIds } = useWishlist();
+  const { customer, openAuthModal, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -133,14 +135,36 @@ export default function Navbar() {
             </button>
 
             {/* Customer Account & Orders Portal */}
-            <Link
-              href="/account"
-              className="p-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors flex items-center gap-1.5"
-              title="Customer Account & Orders"
-            >
-              <UserIcon className="w-5 h-5" />
-              <span className="hidden sm:inline text-xs font-medium text-zinc-300">Account</span>
-            </Link>
+            {customer ? (
+              <Link
+                href="/account"
+                className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-all flex items-center gap-2"
+                title={`${customer.name} - Account & Orders`}
+              >
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-red-700 to-red-500 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm shadow-red-950">
+                  {customer.name
+                    ? customer.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()
+                    : "VS"}
+                </div>
+                <span className="hidden sm:inline text-xs font-semibold max-w-[100px] truncate text-white">
+                  {customer.name.split(" ")[0]}
+                </span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal("login")}
+                className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors flex items-center gap-1.5"
+              >
+                <UserIcon className="w-4 h-4 text-red-500" />
+                <span className="hidden sm:inline">Sign In</span>
+              </button>
+            )}
 
             {/* Mobile menu toggle */}
             <button

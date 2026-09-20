@@ -1,12 +1,7 @@
-const { PrismaClient } = require('../PrintXO - BOS/node_modules/@prisma/client');
+require('dotenv').config();
+const { PrismaClient } = require('@prisma/client');
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: 'postgresql://postgres.bmnmwtbidcncjtbecvwa:%4084e9241fujsps2991B2817@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true'
-    }
-  }
-});
+const prisma = new PrismaClient();
 
 async function main() {
   try {

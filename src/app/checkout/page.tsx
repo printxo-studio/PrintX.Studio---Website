@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -16,24 +16,39 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCart } from "@/lib/store";
-import { formatCurrency, generateOrderNumber } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { formatCurrency } from "@/lib/utils";
 import { createCheckoutSession } from "@/lib/stripe";
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, discount, shipping, tax, total, clearCart } = useCart();
+  const { customer } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [street, setStreet] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [postalCode, setPostalCode] = useState("");
+  const [city, setCity] = useState("Bengaluru");
+  const [state, setState] = useState("Karnataka");
+  const [postalCode, setPostalCode] = useState("560001");
   const [deliveryMethod, setDeliveryMethod] = useState<"standard" | "priority">("standard");
   const [paymentMethod, setPaymentMethod] = useState<"stripe" | "upi" | "cod">("stripe");
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Pre-fill fields if customer is logged in
+  useEffect(() => {
+    if (customer) {
+      if (customer.name && !fullName) setFullName(customer.name);
+      if (customer.email && !email) setEmail(customer.email);
+      if (customer.phone && !phone) setPhone(customer.phone);
+      if (customer.address && !street) setStreet(customer.address);
+      if (customer.city) setCity(customer.city);
+      if (customer.state) setState(customer.state);
+      if (customer.pincode) setPostalCode(customer.pincode);
+    }
+  }, [customer]);
 
   if (items.length === 0) {
     return (
@@ -65,58 +80,42 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      const orderNumber = generateOrderNumber();
-      const orderData = {
-        orderNumber,
-        customerEmail: email,
-        customerName: fullName,
-        customerPhone: phone,
-        status: "PAID",
-        subtotal,
-        discountAmount: discount,
-        shippingAmount: effectiveShipping,
-        taxAmount: tax,
-        totalAmount: grandTotal,
-        items,
-        shippingAddress: {
-          fullName,
-          phone,
-          street,
-          city,
-          state,
-          postalCode,
-          country: "IN",
-        },
-        paymentMethod,
-        createdAt: new Date().toISOString(),
-      };
+      // 1. Submit order to unified /api/checkout (PostgreSQL single source of truth)
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: items.map((it) => ({
+            productId: it.productId || it.product?.id || null,
+            name: it.product?.name || "Custom 3D Print Part",
+            sku: it.product?.sku || null,
+            price: Number(it.product?.salePrice ?? it.product?.price ?? 0),
+            quantity: Number(it.quantity || 1),
+            selectedColor: it.selectedColor || null,
+            notes: it.notes || null,
+          })),
+          shippingAddress: {
+            fullName,
+            email,
+            phone,
+            street,
+            city,
+            state,
+            postalCode,
+            country: "India",
+          },
+          deliveryMethod,
+          paymentMethod,
+          discountAmount: discount,
+        }),
+      });
 
-      // Save customer profile for automatic CRM tracking
-      try {
-        localStorage.setItem(
-          "printxo_customer_profile",
-          JSON.stringify({ name: fullName, email, phone })
-        );
-      } catch (e) {}
-
-      // Save order to localStorage customer order log
-      try {
-        const existing = JSON.parse(localStorage.getItem("printxo_customer_orders") || "[]");
-        localStorage.setItem("printxo_customer_orders", JSON.stringify([orderData, ...existing]));
-      } catch (err) {
-        console.error("Order save error", err);
+      const checkoutResult = await res.json();
+      if (!res.ok || !checkoutResult.success) {
+        throw new Error(checkoutResult.error || "Failed to process order");
       }
 
-      // Synchronize order to PrintX BOS & trigger Gemini automated invoice
-      try {
-        await fetch("/api/sync/order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(orderData),
-        });
-      } catch (syncErr) {
-        console.warn("Order sync to BOS warning:", syncErr);
-      }
+      const orderNumber = checkoutResult.orderNumber;
 
       // If Stripe payment selected:
       if (paymentMethod === "stripe") {
@@ -139,9 +138,9 @@ export default function CheckoutPage() {
       // Instant confirmation for UPI / COD / Mock
       clearCart();
       router.push(`/checkout/success?orderNumber=${orderNumber}`);
-    } catch (err) {
-      console.error(err);
-      setErrorMessage("Failed to process order. Please verify your details and try again.");
+    } catch (err: any) {
+      console.error("Order processing error:", err);
+      setErrorMessage(err.message || "Failed to process order. Please verify your details and try again.");
       setIsProcessing(false);
     }
   };

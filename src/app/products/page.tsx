@@ -28,20 +28,21 @@ function ProductCatalogContent() {
   const [publishedProducts, setPublishedProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch("/api/sync/product")
+    fetch("/api/products")
       .then((r) => r.json())
       .then((data) => {
-        if (data.products && Array.isArray(data.products)) {
+        if (data.products && Array.isArray(data.products) && data.products.length > 0) {
           setPublishedProducts(data.products);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error("Error loading products:", err));
   }, []);
 
   const combinedProducts = useMemo(() => {
-    const existingSkus = new Set(INITIAL_PRODUCTS.map((p) => p.sku || p.id));
-    const newItems = publishedProducts.filter((p) => !existingSkus.has(p.sku || p.id));
-    return [...newItems, ...INITIAL_PRODUCTS];
+    if (publishedProducts.length > 0) {
+      return publishedProducts;
+    }
+    return INITIAL_PRODUCTS;
   }, [publishedProducts]);
 
   // Extract unique materials

@@ -30,21 +30,46 @@ interface ProductPageProps {
 
 export default function ProductDetailPage({ params }: ProductPageProps) {
   const { slug } = use(params);
-  const product = INITIAL_PRODUCTS.find((p) => p.slug === slug);
-
-  if (!product) {
-    notFound();
-  }
+  const initialProduct = INITIAL_PRODUCTS.find((p) => p.slug === slug);
+  const [product, setProduct] = useState<any>(initialProduct || null);
+  const [loading, setLoading] = useState(!initialProduct);
 
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedColor, setSelectedColor] = useState(product.colorOptions[0] || "");
+  const [selectedColor, setSelectedColor] = useState(product?.colorOptions?.[0] || "Matte Black");
   const [quantity, setQuantity] = useState(1);
   const [personalizationNote, setPersonalizationNote] = useState("");
   const [activeTab, setActiveTab] = useState<"gallery" | "3d">("gallery");
   const [isAdded, setIsAdded] = useState(false);
+
+  React.useEffect(() => {
+    fetch(`/api/products/${slug}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.product) {
+          setProduct(data.product);
+          if (data.product.colorOptions?.[0] && !selectedColor) {
+            setSelectedColor(data.product.colorOptions[0]);
+          }
+        }
+      })
+      .catch((err) => console.error("Error fetching live product:", err))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!product) {
+    notFound();
+  }
 
   const discountPercent = product.salePrice
     ? Math.round(((product.price - product.salePrice) / product.price) * 100)
@@ -58,7 +83,7 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
 
   const wishlisted = isWishlisted(product.id);
   const relatedProducts = INITIAL_PRODUCTS.filter(
-    (p) => p.id !== product.id && p.categoryId === product.categoryId
+    (p) => p.id !== product.id
   ).slice(0, 3);
 
   return (
@@ -127,9 +152,9 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
               {/* Thumbnails */}
               {product.images.length > 1 && (
                 <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                  {product.images.map((img, idx) => (
+                  {product.images.map((img: any, idx: number) => (
                     <button
-                      key={img.id}
+                      key={img.id || idx}
                       onClick={() => setSelectedImageIndex(idx)}
                       className={`relative w-20 h-20 rounded-xl overflow-hidden bg-zinc-950 border-2 transition-all shrink-0 ${
                         selectedImageIndex === idx
@@ -203,7 +228,7 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
                 <span className="text-white normal-case font-medium">{selectedColor}</span>
               </label>
               <div className="flex flex-wrap gap-2">
-                {product.colorOptions.map((color) => (
+                {product.colorOptions.map((color: string) => (
                   <button
                     key={color}
                     onClick={() => setSelectedColor(color)}

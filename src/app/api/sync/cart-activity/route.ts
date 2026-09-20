@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
@@ -28,29 +29,31 @@ export async function POST(request: Request) {
       notes: `Customer active on PrintX Studio website. Added ${items.length} item(s) to cart with total value ₹${total}. Session ID: ${sessionId || "n/a"}.`,
     };
 
-    // Forward to BOS CRM Leads endpoint
+    // 1. Direct database record in shared PostgreSQL
+    let leadRecord: any = null;
     try {
-      const bosRes = await fetch(`${bosUrl}/api/crm/leads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(leadPayload),
+      const count = await prisma.lead.count();
+      const leadCode = `LEAD-${String(count + 1).padStart(3, "0")}`;
+      leadRecord = await prisma.lead.create({
+        data: {
+          leadCode,
+          name: leadPayload.name,
+          email: leadPayload.email,
+          phone: leadPayload.phone,
+          source: "WEBSITE",
+          requirement: leadPayload.notes || leadPayload.requirement,
+          budget: leadPayload.budget,
+          productInterest: leadPayload.productInterest,
+          status: "NEW",
+          priority: leadPayload.priority,
+        },
       });
-
-      if (bosRes.ok) {
-        const bosData = await bosRes.json();
-        return NextResponse.json({
-          success: true,
-          syncedToBos: true,
-          leadCode: bosData.leadCode,
-          message: "Cart intent successfully logged into BOS CRM Leads",
-        });
-      } else {
-        const errText = await bosRes.text();
-        console.warn("BOS CRM responded with non-200:", errText);
-      }
-    } catch (bosError: any) {
-      console.warn("Could not reach BOS CRM at", bosUrl, bosError.message);
+      console.log(`✓ Cart activity logged to DB Lead: ${leadRecord.leadCode}`);
+    } catch (dbErr: any) {
+      console.warn("DB Lead create warning:", dbErr.message);
     }
+
+    // 2. Forward to BOS CRM Leads endpoint if online
 
     return NextResponse.json({
       success: true,
