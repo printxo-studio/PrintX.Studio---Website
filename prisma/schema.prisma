@@ -46,6 +46,7 @@ model Customer {
   invoices     Invoice[]
   payments     Payment[]
   leads        Lead[]
+  quotes       Quote[]
 }
 
 model Lead {
@@ -104,6 +105,7 @@ model Product {
   versions               ProductVersion[]
   orderItems             OrderItem[]
   reviews                Review[]
+  quoteItems             QuoteItem[]
 }
 
 model ProductVersion {
@@ -124,6 +126,7 @@ model Order {
   customerId       String
   customer         Customer    @relation(fields: [customerId], references: [id])
   quoteId          String?
+  quote            Quote?      @relation(fields: [quoteId], references: [id])
   orderDate        DateTime    @default(now())
   dueDate          DateTime?
   priority         String      @default("NORMAL")
@@ -284,5 +287,64 @@ model Setting {
   category    String   @default("GENERAL")
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+model Quote {
+  id               String      @id @default(cuid())
+  quoteNumber      String      @unique
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  date             DateTime    @default(now())
+  validUntil       DateTime
+  preparedBy       String?
+  currency         String      @default("INR")
+  paymentTerms     String?     @default("50% Advance, 50% Before Dispatch")
+  deliveryEstimate String?
+  notes            String?
+  status           String      @default("DRAFT")
+
+  designCost       Float       @default(0)
+  cadCost          Float       @default(0)
+  materialCost     Float       @default(0)
+  printCost        Float       @default(0)
+  postProcessCost  Float       @default(0)
+  packagingCost    Float       @default(0)
+  shippingCost     Float       @default(0)
+  otherCost        Float       @default(0)
+
+  subtotal         Float       @default(0)
+  discountType     String      @default("PERCENT")
+  discountValue    Float       @default(0)
+  discountTotal    Float       @default(0)
+  taxRate          Float       @default(18.0)
+  taxAmount        Float       @default(0)
+  grandTotal       Float       @default(0)
+  estimatedCost    Float       @default(0)
+  estimatedProfit  Float       @default(0)
+  marginPercent    Float       @default(0)
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  items            QuoteItem[]
+  orders           Order[]
+}
+
+model QuoteItem {
+  id             String    @id @default(cuid())
+  quoteId        String
+  quote          Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?  @relation(fields: [productId], references: [id])
+  name           String
+  description    String?
+  quantity       Int       @default(1)
+  unitPrice      Float     @default(0)
+  discount       Float     @default(0)
+  taxRate        Float     @default(18.0)
+  lineTotal      Float     @default(0)
+  material       String?
+  printTimeHours Float?
+  filamentGrams  Float?
 }
 

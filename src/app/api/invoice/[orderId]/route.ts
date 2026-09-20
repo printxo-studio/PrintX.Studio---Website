@@ -139,6 +139,7 @@ export async function GET(
       th { background-color: #f4f4f5 !important; color: #000 !important; }
       td, th { border-color: #e4e4e7 !important; color: #000 !important; }
       .text-white { color: #000000 !important; }
+      .invoice-logo { height: 52px !important; width: auto !important; max-width: 220px !important; display: block !important; }
     }
     body {
       margin: 0;
@@ -188,7 +189,7 @@ export async function GET(
     <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 28px; border-bottom: 1px solid #27272a;">
       <div>
         <div style="margin-bottom: 14px;">
-          <img src="/logo.png" alt="" style="height: 56px; max-width: 240px; object-fit: contain;" onerror="this.style.display='none'">
+          <img src="/logo.png" alt="PrintX Studio" class="invoice-logo" style="height: 52px; width: auto; max-width: 220px; object-fit: contain; display: block;" onerror="this.style.display='none'">
         </div>
         <div style="font-size: 11.5px; color: #71717a; line-height: 1.6;">
           ${isGst && configGstin ? `GSTIN: <strong>${configGstin}</strong><br>` : ""}
