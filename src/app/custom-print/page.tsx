@@ -120,6 +120,17 @@ export default function CustomPrintPage() {
       console.error(err);
     }
 
+    // Forward to Website & BOS backend API
+    try {
+      await fetch("/api/custom-print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData),
+      });
+    } catch (apiErr) {
+      console.warn("Backend custom print sync:", apiErr);
+    }
+
     setIsSubmitting(false);
     setSuccessRequestId(requestNumber);
   };
