@@ -99,6 +99,19 @@ export async function POST(request: Request) {
         ? "Priority Express Air"
         : "Standard Surface Logistics";
 
+    // 3.5. Verify valid product IDs in Database (avoid foreign key violation for custom/mock items)
+    const candidateProductIds = validated.items
+      .map((it) => it.productId)
+      .filter((id): id is string => Boolean(id));
+
+    const existingProducts = candidateProductIds.length > 0
+      ? await prisma.product.findMany({
+          where: { id: { in: candidateProductIds } },
+          select: { id: true },
+        })
+      : [];
+    const validProductIdSet = new Set(existingProducts.map((p) => p.id));
+
     // 4. Create Order & OrderItems in Database
     const newOrder = await prisma.order.create({
       data: {
@@ -121,17 +134,23 @@ export async function POST(request: Request) {
         shippingMethod: shippingMethodName,
         notes: `Placed via Storefront. Payment: ${validated.paymentMethod.toUpperCase()}. Delivery: ${shippingMethodName}.`,
         items: {
-          create: validated.items.map((item) => ({
-            productId: item.productId || null,
-            name: item.name,
-            sku: item.sku || null,
-            description: item.selectedColor ? `Color: ${item.selectedColor}` : null,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            discount: 0,
-            taxRate: 18.0,
-            lineTotal: item.price * item.quantity,
-          })),
+          create: validated.items.map((item) => {
+            const verifiedProductId =
+              item.productId && validProductIdSet.has(item.productId)
+                ? item.productId
+                : null;
+            return {
+              productId: verifiedProductId,
+              name: item.name,
+              sku: item.sku || null,
+              description: item.selectedColor ? `Color: ${item.selectedColor}` : null,
+              quantity: item.quantity,
+              unitPrice: item.price,
+              discount: 0,
+              taxRate: 18.0,
+              lineTotal: item.price * item.quantity,
+            };
+          }),
         },
       },
       include: {
