@@ -13,22 +13,54 @@ export function useCart() {
   const [coupon, setCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [gstEnabled, setGstEnabled] = useState(false);
 
-  useEffect(() => {
+  const readCart = () => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY);
       if (savedCart) {
         setItems(JSON.parse(savedCart));
+      } else {
+        setItems([]);
       }
       const savedCoupon = localStorage.getItem(COUPON_STORAGE_KEY);
       if (savedCoupon) {
         setCoupon(JSON.parse(savedCoupon));
+      } else {
+        setCoupon(null);
       }
     } catch (e) {
       console.error("Failed to parse cart storage", e);
-    } finally {
-      setIsLoaded(true);
     }
+  };
+
+  useEffect(() => {
+    readCart();
+    setIsLoaded(true);
+
+    // Fetch system settings for GST
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.settings?.gstEnabled === true) {
+          setGstEnabled(true);
+        } else {
+          setGstEnabled(false);
+        }
+      })
+      .catch(() => setGstEnabled(false));
+
+    const handleUpdate = () => {
+      readCart();
+    };
+
+    window.addEventListener("printxo-cart-updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    return () => {
+      window.removeEventListener("printxo-cart-updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
   }, []);
 
   const syncCartToBos = (cartItems: CartItem[]) => {
@@ -63,6 +95,9 @@ export function useCart() {
     setItems(newItems);
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newItems));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("printxo-cart-updated"));
+      }
     } catch (e) {
       console.error("Failed to save cart storage", e);
     }
@@ -71,13 +106,21 @@ export function useCart() {
 
   const addItem = (product: Product, quantity = 1, color?: string, notes?: string) => {
     const selectedColor = color || (product.colorOptions.length > 0 ? product.colorOptions[0] : undefined);
-    const existingIndex = items.findIndex(
+    
+    // Read freshest items from storage to avoid stale closure
+    let currentItems = items;
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) currentItems = JSON.parse(saved);
+    } catch (e) {}
+
+    const existingIndex = currentItems.findIndex(
       (item) => item.productId === product.id && item.selectedColor === selectedColor
     );
 
     let updated: CartItem[];
     if (existingIndex > -1) {
-      updated = [...items];
+      updated = [...currentItems];
       updated[existingIndex].quantity += quantity;
     } else {
       const newItem: CartItem = {
@@ -88,22 +131,38 @@ export function useCart() {
         selectedColor,
         notes,
       };
-      updated = [...items, newItem];
+      updated = [...currentItems, newItem];
     }
     saveItems(updated);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("printxo-cart-open"));
+    }
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    let currentItems = items;
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) currentItems = JSON.parse(saved);
+    } catch (e) {}
+
     if (quantity <= 0) {
       removeItem(itemId);
       return;
     }
-    const updated = items.map((item) => (item.id === itemId ? { ...item, quantity } : item));
+    const updated = currentItems.map((item) => (item.id === itemId ? { ...item, quantity } : item));
     saveItems(updated);
   };
 
   const removeItem = (itemId: string) => {
-    const updated = items.filter((item) => item.id !== itemId);
+    let currentItems = items;
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) currentItems = JSON.parse(saved);
+    } catch (e) {}
+
+    const updated = currentItems.filter((item) => item.id !== itemId);
     saveItems(updated);
   };
 
@@ -134,6 +193,9 @@ export function useCart() {
     setCoupon(found);
     try {
       localStorage.setItem(COUPON_STORAGE_KEY, JSON.stringify(found));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("printxo-cart-updated"));
+      }
     } catch (e) {
       console.error("Failed to save coupon", e);
     }
@@ -145,6 +207,9 @@ export function useCart() {
     setCouponError(null);
     try {
       localStorage.removeItem(COUPON_STORAGE_KEY);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("printxo-cart-updated"));
+      }
     } catch (e) {
       console.error("Failed to clear coupon", e);
     }
@@ -170,7 +235,7 @@ export function useCart() {
 
   // Free shipping over ₹1499, else flat ₹149
   const shipping = subtotal > 1499 || subtotal === 0 ? 0 : 149;
-  const tax = Math.round((subtotal - discount) * 0.18); // 18% GST
+  const tax = gstEnabled ? Math.round((subtotal - discount) * 0.18) : 0;
   const total = Math.max(0, subtotal - discount + shipping + tax);
   const totalItemsCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -182,6 +247,7 @@ export function useCart() {
     discount,
     shipping,
     tax,
+    gstEnabled,
     total,
     coupon,
     couponError,

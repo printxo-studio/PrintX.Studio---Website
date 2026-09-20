@@ -86,7 +86,19 @@ export async function POST(request: Request) {
       shippingCost += 200;
     }
 
-    const taxAmount = Math.round((taxableSubtotal + shippingCost) * 0.18);
+    // Check system config for GST setting
+    const sysConfig = await prisma.setting.findUnique({
+      where: { key: "PRINTXO_SYSTEM_CONFIG" },
+    });
+    let isGstEnabled = false;
+    if (sysConfig?.value) {
+      try {
+        const parsed = JSON.parse(sysConfig.value);
+        isGstEnabled = parsed.gstEnabled === true;
+      } catch (e) {}
+    }
+
+    const taxAmount = isGstEnabled ? Math.round((taxableSubtotal + shippingCost) * 0.18) : 0;
     const grandTotal = taxableSubtotal + shippingCost + taxAmount;
 
     // 3. Generate Order Number (e.g. ORD-2026-0042)
@@ -147,7 +159,7 @@ export async function POST(request: Request) {
               quantity: item.quantity,
               unitPrice: item.price,
               discount: 0,
-              taxRate: 18.0,
+              taxRate: isGstEnabled ? 18.0 : 0.0,
               lineTotal: item.price * item.quantity,
             };
           }),
@@ -175,7 +187,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 6. Generate GST Tax Invoice in PostgreSQL
+    // 6. Generate Invoice in PostgreSQL
     const invCount = await prisma.invoice.count();
     const invoiceNumber = `INV-2026-${String(invCount + 1).padStart(4, "0")}`;
 
@@ -183,9 +195,9 @@ export async function POST(request: Request) {
       !validated.shippingAddress.state ||
       validated.shippingAddress.state.toLowerCase().includes("karnataka");
 
-    const cgstAmount = isIntraState ? Math.round(taxAmount / 2) : 0;
-    const sgstAmount = isIntraState ? taxAmount - cgstAmount : 0;
-    const igstAmount = !isIntraState ? taxAmount : 0;
+    const cgstAmount = isGstEnabled && isIntraState ? Math.round(taxAmount / 2) : 0;
+    const sgstAmount = isGstEnabled && isIntraState ? taxAmount - cgstAmount : 0;
+    const igstAmount = isGstEnabled && !isIntraState ? taxAmount : 0;
 
     const newInvoice = await prisma.invoice.create({
       data: {
@@ -207,7 +219,9 @@ export async function POST(request: Request) {
         amountPaid: grandTotal,
         balanceDue: 0,
         status: "ISSUED",
-        notes: `Official electronic GST tax invoice for Order ${orderNumber}. HSN 8477 applies to custom 3D polymers.`,
+        notes: isGstEnabled
+          ? `Official electronic GST tax invoice for Order ${orderNumber}. HSN 8477 applies to custom 3D polymers.`
+          : `Official commercial invoice & fulfillment record for Order ${orderNumber}. HSN 8477 applies to custom 3D polymers.`,
         items: {
           create: validated.items.map((it) => ({
             description: `${it.name}${it.selectedColor ? ` (${it.selectedColor})` : ""}`,
@@ -215,7 +229,7 @@ export async function POST(request: Request) {
             quantity: it.quantity,
             rate: it.price,
             discount: 0,
-            taxRate: 18.0,
+            taxRate: isGstEnabled ? 18.0 : 0.0,
             amount: it.price * it.quantity,
           })),
         },

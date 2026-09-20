@@ -23,6 +23,7 @@ export default function CustomPrintPage() {
   const router = useRouter();
 
   const [files, setFiles] = useState<{ name: string; size: number; type: string }[]>([]);
+  const [rawFiles, setRawFiles] = useState<File[]>([]);
   const [projectTitle, setProjectTitle] = useState("");
   const [description, setDescription] = useState("");
   const [intendedUse, setIntendedUse] = useState("Display / Aesthetics");
@@ -46,7 +47,8 @@ export default function CustomPrintPage() {
     setFileError(null);
     if (!e.target.files || e.target.files.length === 0) return;
 
-    const newFiles = Array.from(e.target.files).map((f) => ({
+    const fileList = Array.from(e.target.files);
+    const newFiles = fileList.map((f) => ({
       name: f.name,
       size: f.size,
       type: f.name.split(".").pop()?.toLowerCase() || "",
@@ -63,6 +65,7 @@ export default function CustomPrintPage() {
     }
 
     setFiles((prev) => [...prev, ...newFiles]);
+    setRawFiles((prev) => [...prev, ...fileList]);
     setHasUploadedModel(true);
   };
 
@@ -72,6 +75,7 @@ export default function CustomPrintPage() {
       if (updated.length === 0) setHasUploadedModel(false);
       return updated;
     });
+    setRawFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -276,8 +280,8 @@ export default function CustomPrintPage() {
                 <span className="text-[11px] text-zinc-500">WebGL Real-Time Slicing Simulation</span>
               </div>
               <ModelViewer
+                file={rawFiles.find((f) => f.name.toLowerCase().endsWith(".stl")) || rawFiles[0] || null}
                 title={files[0]?.name || "3D Interactive Simulation"}
-                dimensions={{ x: 140, y: 140, z: 155 }}
               />
             </div>
           </div>

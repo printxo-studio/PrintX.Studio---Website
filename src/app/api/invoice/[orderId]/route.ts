@@ -81,7 +81,24 @@ export async function GET(
       }
     }
 
-    // 4. Prepare data for printable invoice view
+    // 4. Fetch System Settings for GST Configuration
+    const sysConfig = await prisma.setting.findUnique({
+      where: { key: "PRINTXO_SYSTEM_CONFIG" },
+    });
+    let isGstConfigured = false;
+    let configGstin = "";
+    if (sysConfig?.value) {
+      try {
+        const parsed = JSON.parse(sysConfig.value);
+        isGstConfigured = parsed.gstEnabled === true;
+        configGstin = parsed.gstin || "";
+      } catch (e) {}
+    }
+
+    const totalTax = (invoice.cgstAmount || 0) + (invoice.sgstAmount || 0) + (invoice.igstAmount || 0);
+    const isGst = isGstConfigured && totalTax > 0;
+    const invoiceTitle = isGst ? "TAX INVOICE" : "COMMERCIAL INVOICE / BILL OF SUPPLY";
+
     const invDate = new Date(invoice.invoiceDate).toLocaleDateString("en-IN", {
       day: "numeric",
       month: "long",
@@ -101,7 +118,7 @@ export async function GET(
           </td>
           <td style="padding: 12px 14px; border-bottom: 1px solid #27272a; text-align: center; color: #e4e4e7;">${item.quantity}</td>
           <td style="padding: 12px 14px; border-bottom: 1px solid #27272a; text-align: right; color: #e4e4e7; font-family: monospace;">₹${item.rate.toLocaleString("en-IN")}</td>
-          <td style="padding: 12px 14px; border-bottom: 1px solid #27272a; text-align: right; color: #a1a1aa; font-family: monospace;">${item.taxRate}% GST</td>
+          <td style="padding: 12px 14px; border-bottom: 1px solid #27272a; text-align: right; color: #a1a1aa; font-family: monospace;">${isGst ? `${item.taxRate}% GST` : "0% (Non-GST Supply)"}</td>
           <td style="padding: 12px 14px; border-bottom: 1px solid #27272a; text-align: right; color: #ffffff; font-weight: 700; font-family: monospace;">₹${item.amount.toLocaleString("en-IN")}</td>
         </tr>
       `
@@ -113,7 +130,7 @@ export async function GET(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tax Invoice ${invoice.invoiceNumber} - PrintX Studio</title>
+  <title>${invoiceTitle} ${invoice.invoiceNumber} - PrintX Studio</title>
   <style>
     @media print {
       body { background: #ffffff !important; color: #000000 !important; }
@@ -122,7 +139,6 @@ export async function GET(
       th { background-color: #f4f4f5 !important; color: #000 !important; }
       td, th { border-color: #e4e4e7 !important; color: #000 !important; }
       .text-white { color: #000000 !important; }
-      .badge-gemini { background: #f0fdf4 !important; color: #166534 !important; border-color: #bbf7d0 !important; }
     }
     body {
       margin: 0;
@@ -140,20 +156,6 @@ export async function GET(
       border-radius: 20px;
       padding: 40px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    }
-    .badge-gemini {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      background: rgba(220, 38, 38, 0.12);
-      border: 1px solid rgba(220, 38, 38, 0.3);
-      border-radius: 9999px;
-      color: #f87171;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
     .print-btn {
       background-color: #dc2626;
@@ -177,33 +179,26 @@ export async function GET(
     <a href="/account" style="color: #a1a1aa; text-decoration: none; font-size: 13px; font-weight: 600;">&larr; Back to My Account & Orders</a>
     <button onclick="window.print()" class="print-btn">
       <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
-      Print / Save Tax Invoice
+      Print / Save Invoice
     </button>
   </div>
 
   <div class="invoice-box">
-    <!-- Header -->
+    <!-- Header: LOGO ONLY (No brand name text) -->
     <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 28px; border-bottom: 1px solid #27272a;">
       <div>
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-          <img src="/logo.png" alt="PrintX Studio" style="height: 48px; object-fit: contain;" onerror="this.style.display='none'">
-          <div>
-            <h1 style="margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: #ffffff;">PRINTX STUDIO</h1>
-            <div style="font-size: 11px; color: #a1a1aa; font-weight: 500;">Industrial Additive Manufacturing & Rapid Prototyping</div>
-          </div>
+        <div style="margin-bottom: 14px;">
+          <img src="/logo.png" alt="" style="height: 56px; max-width: 240px; object-fit: contain;" onerror="this.style.display='none'">
         </div>
         <div style="font-size: 11.5px; color: #71717a; line-height: 1.6;">
-          GSTIN: <strong>29AABCP1234F1Z8</strong> &bull; PAN: AABCP1234F<br>
+          ${isGst && configGstin ? `GSTIN: <strong>${configGstin}</strong><br>` : ""}
           Tech Maker Hub, 100ft Road, Indiranagar, Bengaluru, KA 560038<br>
           Email: contact@printx.studio &bull; Web: printx.studio
         </div>
       </div>
 
       <div style="text-align: right;">
-        <div class="badge-gemini" style="margin-bottom: 12px;">
-          <span>✦ Gemini AI Verified</span>
-        </div>
-        <div style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.01em;">TAX INVOICE</div>
+        <div style="font-size: 20px; font-weight: 900; color: #ffffff; letter-spacing: -0.01em;">${invoiceTitle}</div>
         <div style="font-size: 13px; font-family: monospace; color: #ef4444; font-weight: 700; margin-top: 4px;"># ${invoice.invoiceNumber}</div>
         <div style="font-size: 12px; color: #71717a; margin-top: 4px;">Date: ${invDate}</div>
         <div style="font-size: 12px; color: #71717a;">Order Ref: <strong style="color: #e4e4e7;">${invoice.order?.orderNumber || orderId}</strong></div>
@@ -217,18 +212,18 @@ export async function GET(
         <div style="font-size: 14px; font-weight: 700; color: #ffffff;">${invoice.customer?.name || "Storefront Customer"}</div>
         <div style="font-size: 12px; color: #a1a1aa; margin-top: 4px; line-height: 1.6;">
           ${invoice.customer?.email || ""}<br>
-          ${invoice.billingAddress || invoice.shippingAddress || "Standard Billing Address"}<br>
-          Place of Supply: <strong>${invoice.customer?.state || "Karnataka"} (29)</strong>
+          ${invoice.billingAddress || invoice.shippingAddress || "Standard Delivery Address"}<br>
+          Place of Supply: <strong>${invoice.customer?.state || "Standard"}</strong>
         </div>
       </div>
 
       <div>
         <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ef4444; margin-bottom: 8px;">DISPATCH & DELIVERY</div>
-        <div style="font-size: 14px; font-weight: 700; color: #ffffff;">${invoice.order?.shippingMethod || "Standard Surface"}</div>
+        <div style="font-size: 14px; font-weight: 700; color: #ffffff;">${invoice.order?.shippingMethod || "Standard Surface Logistics"}</div>
         <div style="font-size: 12px; color: #a1a1aa; margin-top: 4px; line-height: 1.6;">
           Recipient: ${invoice.customer?.name || "Customer"}<br>
-          Status: <strong style="color: #22c55e;">${invoice.status === "PAID" ? "PAID IN FULL" : invoice.status}</strong><br>
-          Due Date: ${new Date(invoice.dueDate).toLocaleDateString("en-IN")}
+          Payment Status: <strong style="color: #22c55e;">${invoice.status === "PAID" ? "PAID IN FULL" : invoice.status}</strong><br>
+          Order Due Date: ${new Date(invoice.dueDate).toLocaleDateString("en-IN")}
         </div>
       </div>
     </div>
@@ -256,11 +251,11 @@ export async function GET(
     <div style="display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px solid #27272a;">
       <div style="width: 320px; font-size: 12.5px;">
         <div style="display: flex; justify-content: space-between; padding: 6px 0; color: #a1a1aa;">
-          <span>Taxable Subtotal</span>
+          <span>${isGst ? "Taxable Subtotal" : "Subtotal"}</span>
           <span style="color: #ffffff; font-family: monospace;">₹${invoice.taxableAmount.toLocaleString("en-IN")}</span>
         </div>
         ${
-          invoice.cgstAmount > 0
+          isGst && invoice.cgstAmount > 0
             ? `<div style="display: flex; justify-content: space-between; padding: 6px 0; color: #a1a1aa;">
                 <span>CGST (9%)</span>
                 <span style="color: #ffffff; font-family: monospace;">₹${invoice.cgstAmount.toLocaleString("en-IN")}</span>
@@ -268,7 +263,7 @@ export async function GET(
             : ""
         }
         ${
-          invoice.sgstAmount > 0
+          isGst && invoice.sgstAmount > 0
             ? `<div style="display: flex; justify-content: space-between; padding: 6px 0; color: #a1a1aa;">
                 <span>SGST (9%)</span>
                 <span style="color: #ffffff; font-family: monospace;">₹${invoice.sgstAmount.toLocaleString("en-IN")}</span>
@@ -276,7 +271,7 @@ export async function GET(
             : ""
         }
         ${
-          invoice.igstAmount > 0
+          isGst && invoice.igstAmount > 0
             ? `<div style="display: flex; justify-content: space-between; padding: 6px 0; color: #a1a1aa;">
                 <span>IGST (18%)</span>
                 <span style="color: #ffffff; font-family: monospace;">₹${invoice.igstAmount.toLocaleString("en-IN")}</span>
@@ -294,13 +289,13 @@ export async function GET(
       </div>
     </div>
 
-    <!-- AI & Compliance Footer -->
+    <!-- Compliance Footer -->
     <div style="margin-top: 36px; padding: 20px; background-color: #18181b; border: 1px solid #27272a; border-radius: 14px;">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
         <div>
-          <div style="font-size: 11.5px; font-weight: 700; color: #ffffff;">PrintX Studio Gemini AI Financial Engine</div>
+          <div style="font-size: 11.5px; font-weight: 700; color: #ffffff;">PrintX Studio Billing & Order Fulfillment</div>
           <div style="font-size: 11px; color: #71717a; margin-top: 3px;">
-            ${invoice.notes || "This electronic tax invoice was automatically generated and verified by Google Gemini AI embedded in PrintX Studio BOS. HSN 8477 applies to custom 3D additive polymers. No physical signature required under Section 28 of Information Technology Act 2000."}
+            Official electronic document generated for Order ${invoice.order?.orderNumber || orderId}. HSN 8477 applies to custom 3D additive polymers. No physical signature required under Section 28 of Information Technology Act 2000.
           </div>
         </div>
         <div style="text-align: right; shrink-0;">

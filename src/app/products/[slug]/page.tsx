@@ -18,11 +18,11 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { INITIAL_PRODUCTS } from "@/lib/mock-data";
 import { formatCurrency } from "@/lib/utils";
 import { useCart, useWishlist } from "@/lib/store";
 import ModelViewer from "@/components/3d/ModelViewer";
 import ProductCard from "@/components/products/ProductCard";
+import ProductReviewsSection from "@/components/products/ProductReviewsSection";
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -30,33 +30,43 @@ interface ProductPageProps {
 
 export default function ProductDetailPage({ params }: ProductPageProps) {
   const { slug } = use(params);
-  const initialProduct = INITIAL_PRODUCTS.find((p) => p.slug === slug);
-  const [product, setProduct] = useState<any>(initialProduct || null);
-  const [loading, setLoading] = useState(!initialProduct);
+  const [product, setProduct] = useState<any>(null);
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedColor, setSelectedColor] = useState(product?.colorOptions?.[0] || "Matte Black");
+  const [selectedColor, setSelectedColor] = useState("Matte Black");
   const [quantity, setQuantity] = useState(1);
   const [personalizationNote, setPersonalizationNote] = useState("");
   const [activeTab, setActiveTab] = useState<"gallery" | "3d">("gallery");
   const [isAdded, setIsAdded] = useState(false);
 
   React.useEffect(() => {
+    setLoading(true);
     fetch(`/api/products/${slug}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.product) {
           setProduct(data.product);
-          if (data.product.colorOptions?.[0] && !selectedColor) {
+          if (data.product.colorOptions?.[0]) {
             setSelectedColor(data.product.colorOptions[0]);
           }
         }
       })
       .catch((err) => console.error("Error fetching live product:", err))
       .finally(() => setLoading(false));
+
+    fetch(`/api/products`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.products && Array.isArray(data.products)) {
+          setRelatedProducts(data.products.filter((p: any) => p.slug !== slug).slice(0, 3));
+        }
+      })
+      .catch(() => {});
   }, [slug]);
 
   if (loading) {
@@ -82,9 +92,6 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
   };
 
   const wishlisted = isWishlisted(product.id);
-  const relatedProducts = INITIAL_PRODUCTS.filter(
-    (p) => p.id !== product.id
-  ).slice(0, 3);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
@@ -360,6 +367,9 @@ export default function ProductDetailPage({ params }: ProductPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Customer Ratings & Reviews Section (R&D Feedback) */}
+      <ProductReviewsSection slug={slug} productName={product.name} />
 
       {/* Related Products */}
       {relatedProducts.length > 0 && (

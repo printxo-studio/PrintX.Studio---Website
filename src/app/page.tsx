@@ -23,12 +23,26 @@ import ModelViewer from "@/components/3d/ModelViewer";
 
 export default function HomePage() {
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const featuredProducts = INITIAL_PRODUCTS.filter((p) => p.isFeatured);
+  React.useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.products && Array.isArray(data.products)) {
+          setProducts(data.products);
+        }
+      })
+      .catch((err) => console.error("Error loading products:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const featuredProducts = products.filter((p) => p.isFeatured !== false);
   const filteredProducts =
     activeCategoryFilter === "all"
-      ? featuredProducts
-      : INITIAL_PRODUCTS.filter((p) => p.categoryId === activeCategoryFilter);
+      ? (featuredProducts.length > 0 ? featuredProducts : products)
+      : products.filter((p) => p.categoryId === activeCategoryFilter || p.category?.slug === activeCategoryFilter);
 
   return (
     <div className="flex flex-col gap-20 sm:gap-28 pb-24 overflow-hidden">
@@ -206,11 +220,29 @@ export default function HomePage() {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.slice(0, 8).map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="aspect-square rounded-2xl bg-zinc-900/60 border border-zinc-800 animate-pulse" />
+            ))}
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-zinc-900/30 border border-zinc-800 text-zinc-400 space-y-3">
+            <p className="text-sm">Catalog items are currently in queue. Need custom 3D printing right now?</p>
+            <Link
+              href="/custom-print"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase transition-colors"
+            >
+              Get Instant Quote with 3D CAD Upload
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredProducts.slice(0, 8).map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 4. HOW CUSTOM 3D PRINTING WORKS */}

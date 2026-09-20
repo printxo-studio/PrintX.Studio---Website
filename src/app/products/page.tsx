@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
@@ -26,24 +27,27 @@ function ProductCatalogContent() {
   const [priceMax, setPriceMax] = useState<number>(3500);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [publishedProducts, setPublishedProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetch("/api/products")
       .then((r) => r.json())
       .then((data) => {
-        if (data.products && Array.isArray(data.products) && data.products.length > 0) {
+        if (data.products && Array.isArray(data.products)) {
           setPublishedProducts(data.products);
+        } else {
+          setPublishedProducts([]);
         }
       })
-      .catch((err) => console.error("Error loading products:", err));
+      .catch((err) => {
+        console.error("Error loading products:", err);
+        setPublishedProducts([]);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const combinedProducts = useMemo(() => {
-    if (publishedProducts.length > 0) {
-      return publishedProducts;
-    }
-    return INITIAL_PRODUCTS;
-  }, [publishedProducts]);
+  const combinedProducts = publishedProducts;
 
   // Extract unique materials
   const allMaterials = useMemo(() => {
@@ -210,7 +214,7 @@ function ProductCatalogContent() {
                 }`}
               >
                 <span>All Categories</span>
-                <span>{INITIAL_PRODUCTS.length}</span>
+                <span>{combinedProducts.length}</span>
               </button>
               {INITIAL_CATEGORIES.map((cat) => (
                 <button
@@ -224,7 +228,7 @@ function ProductCatalogContent() {
                 >
                   <span className="truncate">{cat.name}</span>
                   <span className="text-zinc-500 text-[10px]">
-                    {INITIAL_PRODUCTS.filter((p) => p.categoryId === cat.id).length}
+                    {combinedProducts.filter((p) => p.categoryId === cat.id || p.category?.slug === cat.slug).length}
                   </span>
                 </button>
               ))}
@@ -311,22 +315,46 @@ function ProductCatalogContent() {
             )}
           </div>
 
-          {/* Grid or Empty State */}
-          {filteredProducts.length === 0 ? (
+          {/* Grid, Loading or Empty State */}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((idx) => (
+                <div key={idx} className="rounded-2xl bg-zinc-900/40 border border-zinc-800/80 p-4 space-y-4 animate-pulse">
+                  <div className="aspect-square w-full rounded-xl bg-zinc-800/60" />
+                  <div className="h-4 bg-zinc-800 rounded w-3/4" />
+                  <div className="h-3 bg-zinc-800/60 rounded w-full" />
+                  <div className="h-8 bg-zinc-800/40 rounded mt-4" />
+                </div>
+              ))}
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="p-12 text-center rounded-2xl bg-zinc-900/30 border border-zinc-800/80 space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center text-zinc-600 mx-auto">
                 <Layers className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-white">No products found</h3>
+              <h3 className="text-lg font-bold text-white">
+                {combinedProducts.length === 0 ? "No Live Storefront Products" : "No Products Found"}
+              </h3>
               <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-                Try adjusting your search query, material filter, or max price to view other available prints.
+                {combinedProducts.length === 0
+                  ? "Products are currently being prepared in our additive manufacturing studio. You can upload custom CAD designs for instant 3D printing quotes!"
+                  : "Try adjusting your search query, material filter, or max price to view other available prints."}
               </p>
-              <button
-                onClick={resetFilters}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold transition-colors"
-              >
-                Reset All Filters
-              </button>
+              {combinedProducts.length === 0 ? (
+                <Link
+                  href="/custom-print"
+                  className="inline-block px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider transition-colors"
+                >
+                  Upload Custom 3D CAD
+                </Link>
+              ) : (
+                <button
+                  onClick={resetFilters}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold transition-colors"
+                >
+                  Reset All Filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">

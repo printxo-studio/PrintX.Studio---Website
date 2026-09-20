@@ -29,6 +29,7 @@ import { SAMPLE_CUSTOM_REQUESTS, INITIAL_PRODUCTS } from "@/lib/mock-data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useWishlist, useCart } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
+import OrderTrackingPipeline from "@/components/orders/OrderTrackingPipeline";
 
 export default function AccountDashboardPage() {
   const { customer, isLoading, logout, updateProfile, openAuthModal } = useAuth();
@@ -123,7 +124,7 @@ export default function AccountDashboardPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-white">Customer Account & Orders</h1>
           <p className="text-sm text-zinc-400 max-w-md mx-auto">
-            Sign in to track live 3D printing orders, dispatch courier tracking, Gemini AI tax invoices, and manage your delivery addresses.
+            Sign in to track live 3D printing orders, dispatch courier tracking, official tax invoices, and manage your delivery addresses.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -380,47 +381,8 @@ export default function AccountDashboardPage() {
                     ))}
                   </div>
 
-                  {/* Tracking Stepper */}
-                  <div className="pt-4 border-t border-zinc-800/80">
-                    <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-semibold">
-                      <div className="p-2 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-500/30">
-                        ✓ Paid & Confirmed
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg ${
-                          !isShipped
-                            ? "bg-red-950/40 text-red-400 border border-red-500/30"
-                            : "bg-emerald-950/40 text-emerald-400 border border-emerald-500/30"
-                        }`}
-                      >
-                        {isShipped ? "✓ Printed & Sliced" : "In Print Farm"}
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg ${
-                          isShipped
-                            ? "bg-emerald-950/40 text-emerald-400 border border-emerald-500/30"
-                            : "bg-zinc-950 text-zinc-500 border border-zinc-800"
-                        }`}
-                      >
-                        {isShipped ? "✓ Optical Caliper QC" : "Quality Inspection"}
-                      </div>
-                      <div
-                        className={`p-2 rounded-lg ${
-                          isDelivered
-                            ? "bg-emerald-950/40 text-emerald-400 border border-emerald-500/30"
-                            : isShipped
-                            ? "bg-red-950/40 text-red-400 border border-red-500/30"
-                            : "bg-zinc-950 text-zinc-500 border border-zinc-800"
-                        }`}
-                      >
-                        {isDelivered
-                          ? "✓ Delivered"
-                          : isShipped
-                          ? "In Transit / Dispatched"
-                          : "Scheduled Dispatch"}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Interactive Order Pipeline with Moving Truck & Logistics Flowchart */}
+                  <OrderTrackingPipeline order={order} shipment={liveShipment} />
                 </div>
               );
             })

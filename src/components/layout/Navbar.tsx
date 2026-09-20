@@ -28,6 +28,12 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  React.useEffect(() => {
+    const handleOpenCart = () => setIsCartOpen(true);
+    window.addEventListener("printxo-cart-open", handleOpenCart);
+    return () => window.removeEventListener("printxo-cart-open", handleOpenCart);
+  }, []);
+
   const navLinks = [
     { name: "Products", href: "/products" },
     { name: "Categories", href: "/categories" },
@@ -52,16 +58,16 @@ export default function Navbar() {
           <span className="text-red-400 font-semibold">• 0.08mm Ultra-Layer Quality</span>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-22 sm:h-24 flex items-center justify-between">
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-40 sm:w-48 h-12 transition-transform group-hover:scale-[1.02]">
+            <div className="relative w-52 sm:w-64 md:w-72 h-14 sm:h-16 md:h-18 transition-transform group-hover:scale-[1.02]">
               <Image
                 src="/logo.png"
                 alt="PrintX Studio"
                 fill
                 priority
-                className="object-contain"
+                className="object-contain object-left"
               />
             </div>
           </Link>
