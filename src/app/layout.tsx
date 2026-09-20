@@ -40,9 +40,12 @@ export const metadata: Metadata = {
     follow: true,
   },
   icons: {
-    icon: '/logo-icon.png',
-    shortcut: '/logo-icon.png',
-    apple: '/logo-icon.png',
+    icon: [
+      { url: '/logo-icon.png?v=3', type: 'image/png' },
+      { url: '/favicon.ico?v=3' },
+    ],
+    shortcut: '/logo-icon.png?v=3',
+    apple: '/logo-icon.png?v=3',
   },
 };
 
@@ -53,6 +56,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="icon" type="image/png" href="/logo-icon.png?v=3" />
+        <link rel="shortcut icon" href="/logo-icon.png?v=3" />
+        <link rel="apple-touch-icon" href="/logo-icon.png?v=3" />
+      </head>
       <body className={`${inter.className} bg-zinc-950 text-zinc-100 min-h-screen flex flex-col antialiased selection:bg-red-600 selection:text-white`}>
         <AuthProvider>
           <Navbar />
